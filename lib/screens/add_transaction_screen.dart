@@ -20,78 +20,115 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool isIncome = false;
   String category = defaultCategories.first;
   String paymentType = paymentTypes.first;
+  String bankAccount = bankAccounts.first;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Transaction'),
-      ),
+      appBar: AppBar(title: const Text('Add Transaction'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: noteController,
-              decoration: const InputDecoration(labelText: 'Notes'),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Amount'),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: category,
-              decoration: const InputDecoration(labelText: 'Category'),
-              items: defaultCategories
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  category = value!;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: paymentType,
-              decoration: const InputDecoration(labelText: 'Payment Type'),
-              items: paymentTypes
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  paymentType = value!;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Date'),
-              subtitle: Text(_formatDate(selectedDate)),
-              trailing: IconButton(
-                icon: const Icon(Icons.calendar_today),
-                onPressed: _pickDate,
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-            ),
-            SwitchListTile(
-              title: const Text('Income'),
-              value: isIncome,
-              onChanged: (value) {
-                setState(() {
-                  isIncome = value;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _saveTransaction,
-              child: const Text('Save'),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(labelText: 'Notes'),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: category,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items: defaultCategories
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        category = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: paymentType,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Type',
+                    ),
+                    items: paymentTypes
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        paymentType = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: bankAccount,
+                    decoration:
+                        const InputDecoration(labelText: 'Bank Account'),
+                    items: bankAccounts
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (value) => setState(() => bankAccount = value!),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _pickDate,
+                    icon: const Icon(Icons.calendar_month),
+                    label: Text(_formatDate(selectedDate)),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Expense'),
+                          selected: !isIncome,
+                          onSelected: (_) => setState(() => isIncome = false),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Income'),
+                          selected: isIncome,
+                          onSelected: (_) => setState(() => isIncome = true),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _saveTransaction,
+                    child: const Text('Save Transaction'),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -127,9 +164,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     final amount = double.tryParse(amountController.text);
     if (amount == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
       return;
     }
 
@@ -141,11 +178,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       date: selectedDate,
       paymentType: paymentType,
       isIncome: isIncome,
+      bankAccount: bankAccount,
     );
 
-    Provider.of<TransactionProvider>(context, listen: false)
-        .addTransaction(transaction);
-
+    Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    ).addTransaction(transaction);
     Navigator.pop(context);
   }
 }

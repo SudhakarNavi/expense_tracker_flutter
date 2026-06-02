@@ -94,12 +94,16 @@ class TransactionProvider extends ChangeNotifier {
     DateTime? startDate,
     DateTime? endDate,
   }) {
-    return transactions.where((tx) {
+    final list = transactions.where((tx) {
       final matchesQuery = query == null || query.isEmpty || tx.note.toLowerCase().contains(query.toLowerCase());
       final matchesCategory = category == null || category == 'All' || tx.category == category;
       final matchesStart = startDate == null || !tx.date.isBefore(startDate);
       final matchesEnd = endDate == null || !tx.date.isAfter(endDate);
       return matchesQuery && matchesCategory && matchesStart && matchesEnd;
     }).toList();
+
+    // Ensure ascending order by date (oldest first)
+    list.sort((a, b) => a.date.compareTo(b.date));
+    return list;
   }
 }

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 import '../providers/transaction_provider.dart';
 
@@ -16,34 +20,171 @@ class ReportsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reports'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Export PDF',
+            onPressed: () => _exportPdf(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Monthly Expense',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            _ReportSection(
+              title: 'Monthly Expense',
+              child: _BarChart(data: monthlyExpense),
             ),
-            const SizedBox(height: 12),
-            _BarChart(data: monthlyExpense),
-            const SizedBox(height: 24),
-            const Text(
-              'Category Breakdown',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const SizedBox(height: 18),
+            _ReportSection(
+              title: 'Category Breakdown',
+              child: _PieChart(data: categoryTotals),
             ),
-            const SizedBox(height: 12),
-            _PieChart(data: categoryTotals),
-            const SizedBox(height: 24),
-            const Text(
-              'Weekly Trends',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const SizedBox(height: 18),
+            _ReportSection(
+              title: 'Weekly Trends',
+              child: _LineTrend(data: weeklyTotals),
             ),
-            const SizedBox(height: 12),
-            _LineTrend(data: weeklyTotals),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _exportPdf(BuildContext context) async {
+    final provider = Provider.of<TransactionProvider>(context, listen: false);
+    final transactions = [...provider.transactions];
+    transactions.sort((a, b) => a.date.compareTo(b.date));
+
+    final pdf = pw.Document();
+
+    final tableData = transactions.map((t) {
+      return [
+        t.note,
+        t.category,
+        t.paymentType,
+        t.isIncome ? 'Income' : 'Expense',
+        t.amount.toStringAsFixed(2),
+        '${t.date.day}/${t.date.month}/${t.date.year}',
+      ];
+    }).toList();
+
+    pdf.addPage(
+      pw.MultiPage(
+        build: (context) => [
+          pw.Header(level: 0, child: pw.Text('Expense Tracker - Transactions', style: pw.TextStyle(fontSize: 20))),
+          pw.SizedBox(height: 8),
+          pw.Text('Generated: ${DateTime.now()}'),
+          pw.SizedBox(height: 12),
+          pw.Table.fromTextArray(
+            headers: ['Note', 'Category', 'Payment', 'Type', 'Amount', 'Date'],
+            data: tableData,
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            cellAlignment: pw.Alignment.centerLeft,
+          ),
+        ],
+      ),
+    );
+
+    final bytes = await pdf.save();
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Export PDF'),
+          content: const Text('Would you like to share the PDF or save it to device?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, 'share'), child: const Text('Share')),
+            TextButton(onPressed: () => Navigator.pop(context, 'downloads'), child: const Text('Save to Downloads')),
+            TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancel')),
+          ],
+        );
+      },
+    );
+
+    if (action == 'share') {
+      await Printing.sharePdf(bytes: bytes, filename: 'transactions.pdf');
+      return;
+    }
+
+    if (action == 'downloads') {
+      // Try public downloads or external storage, fall back to app documents
+      try {
+        String? savePath;
+        if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+          final dir = await getDownloadsDirectory();
+          if (dir != null) savePath = '${dir.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        } else if (Platform.isAndroid) {
+          final dirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+          if (dirs != null && dirs.isNotEmpty) {
+            savePath = '${dirs.first.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          }
+        } else if (Platform.isIOS) {
+          // iOS doesn't provide a public downloads directory; use app documents
+          final dir = await getApplicationDocumentsDirectory();
+          savePath = '${dir.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        }
+
+        if (savePath == null) {
+          final dir = await getApplicationDocumentsDirectory();
+          savePath = '${dir.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        }
+
+        final file = File(savePath);
+        await file.writeAsBytes(bytes);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to $savePath')));
+        }
+      } catch (e) {
+        // fallback to app documents
+        try {
+          final dir = await getApplicationDocumentsDirectory();
+          final fallback = File('${dir.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.pdf');
+          await fallback.writeAsBytes(bytes);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to ${fallback.path}')));
+          }
+        } catch (e2) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e2')));
+          }
+        }
+      }
+    }
+  }
+}
+class _ReportSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _ReportSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          child,
+        ],
       ),
     );
   }
@@ -111,7 +252,7 @@ class _PieChart extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          height: 180,
+          height: 120,
           child: CustomPaint(
             painter: _PiePainter(entries, colors),
             child: Center(
@@ -155,7 +296,7 @@ class _PiePainter extends CustomPainter {
     for (var i = 0; i < entries.length; i++) {
       final sweep = total == 0 ? 0.0 : (entries[i].value / total) * 3.14 * 2;
       paint.color = colors[i % colors.length];
-      canvas.drawArc(Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2.2), startAngle, sweep, true, paint);
+      canvas.drawArc(Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2.8), startAngle, sweep, true, paint);
       startAngle += sweep;
     }
   }

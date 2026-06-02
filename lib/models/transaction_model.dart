@@ -6,6 +6,7 @@ class TransactionModel {
   final DateTime date;
   final String paymentType;
   final bool isIncome;
+  final String? bankAccount;
 
   TransactionModel({
     required this.id,
@@ -15,6 +16,7 @@ class TransactionModel {
     required this.date,
     required this.paymentType,
     required this.isIncome,
+    this.bankAccount,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +28,7 @@ class TransactionModel {
       'date': date.toIso8601String(),
       'paymentType': paymentType,
       'isIncome': isIncome,
+      'bankAccount': bankAccount,
     };
   }
 
@@ -38,6 +41,7 @@ class TransactionModel {
       date: DateTime.parse(map['date']),
       paymentType: map['paymentType'] ?? 'Cash',
       isIncome: map['isIncome'],
+      bankAccount: map['bankAccount'],
     );
   }
 }

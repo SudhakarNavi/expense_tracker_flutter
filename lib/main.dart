@@ -23,7 +23,46 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         title: 'Expense Tracker',
         theme: ThemeData(
-          primarySwatch: Colors.green,
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+          scaffoldBackgroundColor: Colors.grey[50],
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            foregroundColor: Colors.white,
+            titleTextStyle: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 18,
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              minimumSize: const Size.fromHeight(52),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              minimumSize: const Size.fromHeight(52),
+            ),
+          ),
         ),
         home: const HomeScreen(),
       ),

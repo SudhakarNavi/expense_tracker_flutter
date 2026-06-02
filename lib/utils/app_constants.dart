@@ -17,3 +17,12 @@ const List<String> paymentTypes = [
   'Wallet',
   'Other',
 ];
+
+const List<String> bankAccounts = [
+  'Cash',
+  'Axis Bank - 1234',
+  'HDFC - 5678',
+  'SBI - 9012',
+  'ICICI - 3456',
+  'Other',
+];
