@@ -1,72 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import 'providers/transaction_provider.dart';
-import 'screens/home_screen.dart';
+import 'app.dart';
 import 'services/hive_service.dart';
+import 'theme/app_theme.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await HiveService.init();
-
-  runApp(const MyApp());
+  runApp(const _Bootstrap());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Opens local storage, then starts the app. If storage cannot be opened the
+/// user sees an explanation and a retry button instead of a blank screen.
+class _Bootstrap extends StatefulWidget {
+  const _Bootstrap();
+
+  @override
+  State<_Bootstrap> createState() => _BootstrapState();
+}
+
+class _BootstrapState extends State<_Bootstrap> {
+  late Future<AppStores> _stores = HiveService.init();
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TransactionProvider()..loadTransactions(),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Expense Tracker',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-          scaffoldBackgroundColor: const Color(0xFFF6F8FA),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFFF6F8FA),
-            elevation: 0,
-            foregroundColor: const Color(0xFF173B3B),
-            titleTextStyle: TextStyle(
-              color: Color(0xFF173B3B),
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 18,
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              minimumSize: const Size.fromHeight(52),
-            ),
-          ),
-          outlinedButtonTheme: OutlinedButtonThemeData(
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              minimumSize: const Size.fromHeight(52),
-            ),
-          ),
-        ),
-        home: const HomeScreen(),
-      ),
+    return FutureBuilder<AppStores>(
+      future: _stores,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return ExpenseTrackerApp(stores: snapshot.data!);
+        }
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          home: snapshot.hasError
+              ? StartupErrorScreen(
+                  onRetry: () => setState(() => _stores = HiveService.init()),
+                )
+              : const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
+        );
+      },
     );
   }
 }

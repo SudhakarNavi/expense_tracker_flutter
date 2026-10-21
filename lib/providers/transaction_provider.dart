@@ -1,113 +1,157 @@
-import 'package:flutter/material.dart';
+import 'dart:collection';
+
+import 'package:flutter/foundation.dart';
 
 import '../models/transaction_model.dart';
-import '../services/hive_service.dart';
+import '../services/finance_calculator.dart';
+import '../services/key_value_store.dart';
+import '../utils/date_utils.dart';
+
+enum TypeFilter { all, income, expense }
 
 class TransactionProvider extends ChangeNotifier {
-  List<TransactionModel> transactions = [];
+  TransactionProvider(this._store);
 
-  void loadTransactions() {
-    final box = HiveService.getBox();
+  final KeyValueStore _store;
 
-    transactions = box.values
-        .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
+  List<TransactionModel> _items = [];
+  int _unreadableRecords = 0;
 
+  /// Newest first.
+  UnmodifiableListView<TransactionModel> get transactions =>
+      UnmodifiableListView(_items);
+
+  /// Records found in storage that could not be interpreted. They are left
+  /// untouched (never deleted) and surfaced in Settings.
+  int get unreadableRecords => _unreadableRecords;
+
+  void load() {
+    final items = <TransactionModel>[];
+    var unreadable = 0;
+    _store.readAll().forEach((key, value) {
+      final tx = value is Map
+          ? TransactionModel.tryFromMap(value, fallbackId: key)
+          : null;
+      if (tx == null) {
+        unreadable++;
+      } else {
+        items.add(tx);
+      }
+    });
+    _items = items;
+    _unreadableRecords = unreadable;
+    _sort();
     notifyListeners();
   }
 
-  void addTransaction(TransactionModel transaction) {
-    final box = HiveService.getBox();
-
-    box.put(transaction.id, transaction.toMap());
-    transactions.add(transaction);
-
-    notifyListeners();
+  void _sort() {
+    _items.sort((a, b) {
+      final byDate = b.date.compareTo(a.date);
+      if (byDate != 0) return byDate;
+      final ac = a.createdAt, bc = b.createdAt;
+      if (ac != null && bc != null) return bc.compareTo(ac);
+      return a.id.compareTo(b.id);
+    });
   }
 
-  void deleteTransaction(String id) {
-    final box = HiveService.getBox();
-    box.delete(id);
-    transactions.removeWhere((element) => element.id == id);
-    notifyListeners();
-  }
-
-  double get totalIncome {
-    return transactions
-        .where((e) => e.isIncome)
-        .fold(0.0, (sum, item) => sum + item.amount);
-  }
-
-  double get totalExpense {
-    return transactions
-        .where((e) => !e.isIncome)
-        .fold(0.0, (sum, item) => sum + item.amount);
-  }
-
-  double get balance => totalIncome - totalExpense;
-
-  List<TransactionModel> get recentTransactions {
-    final sorted = [...transactions];
-    sorted.sort((a, b) => b.date.compareTo(a.date));
-    return sorted.take(5).toList();
-  }
-
-  Map<String, double> get categoryTotals {
-    final totals = <String, double>{};
-    for (final tx in transactions.where((e) => !e.isIncome)) {
-      totals[tx.category] = (totals[tx.category] ?? 0) + tx.amount;
+  TransactionModel? byId(String id) {
+    for (final tx in _items) {
+      if (tx.id == id) return tx;
     }
-    return totals;
+    return null;
   }
 
-  Map<String, double> get lastSixMonthExpenses {
+  /// Adds or replaces a transaction. Memory is updated only after the write
+  /// succeeds; errors propagate to the caller.
+  Future<void> save(TransactionModel tx) async {
+    await _store.put(tx.id, tx.toMap());
+    final index = _items.indexWhere((e) => e.id == tx.id);
+    if (index >= 0) {
+      _items[index] = tx;
+    } else {
+      _items.add(tx);
+    }
+    _sort();
+    notifyListeners();
+  }
+
+  /// Deletes one transaction and returns it (for undo).
+  Future<TransactionModel?> delete(String id) async {
+    final existing = byId(id);
+    if (existing == null) return null;
+    await _store.delete(id);
+    _items.removeWhere((e) => e.id == id);
+    notifyListeners();
+    return existing;
+  }
+
+  Future<void> saveAll(Iterable<TransactionModel> txs) async {
+    final list = txs.toList();
+    if (list.isEmpty) return;
+    await _store.putAll({for (final tx in list) tx.id: tx.toMap()});
+    final byId = {for (final tx in _items) tx.id: tx};
+    for (final tx in list) {
+      byId[tx.id] = tx;
+    }
+    _items = byId.values.toList();
+    _sort();
+    notifyListeners();
+  }
+
+  /// Removes every readable transaction. Unreadable records are kept.
+  Future<void> deleteAll() async {
+    await _store.deleteAll(_items.map((e) => e.id));
+    _items = [];
+    notifyListeners();
+  }
+
+  int countForCategory(String category) =>
+      _items.where((e) => e.category == category).length;
+
+  /// Moves every transaction in [from] to [to] (used by category rename and
+  /// delete, both of which the user confirms first).
+  Future<int> moveCategory(String from, String to) async {
+    final affected = _items.where((e) => e.category == from).toList();
+    if (affected.isEmpty) return 0;
     final now = DateTime.now();
-    final result = <String, double>{};
-    for (int offset = 5; offset >= 0; offset--) {
-      final month = DateTime(now.year, now.month - offset, 1);
-      final key = '${month.month}/${month.year}';
-      final sum = transactions
-          .where((tx) => !tx.isIncome && tx.date.year == month.year && tx.date.month == month.month)
-          .fold(0.0, (value, element) => value + element.amount);
-      result[key] = sum;
-    }
-    return result;
+    await saveAll(
+      affected.map((e) => e.copyWith(category: to, updatedAt: now)),
+    );
+    return affected.length;
   }
 
-  Map<String, double> get weeklyExpenseTrend {
-    final now = DateTime.now();
-    final result = <String, double>{};
-    for (int i = 6; i >= 0; i--) {
-      final day = now.subtract(Duration(days: i));
-      final key = '${day.month}/${day.day}';
-      final sum = transactions
-          .where((tx) => !tx.isIncome && tx.date.year == day.year && tx.date.month == day.month && tx.date.day == day.day)
-          .fold(0.0, (value, element) => value + element.amount);
-      result[key] = sum;
-    }
-    return result;
-  }
+  Set<String> get usedCategories => {for (final tx in _items) tx.category};
 
-  List<TransactionModel> filterTransactions({
-    String? query,
+  // ---- Derived figures (all delegate to FinanceCalculator) ----
+
+  int get balanceMinor => FinanceCalculator.balance(_items);
+
+  FinanceSummary get allTimeSummary => FinanceCalculator.summarize(_items);
+
+  FinanceSummary summaryFor(DateRange range) =>
+      FinanceCalculator.summarizeRange(_items, range);
+
+  List<TransactionModel> recent([int count = 5]) => _items.take(count).toList();
+
+  List<TransactionModel> filter({
+    String query = '',
+    TypeFilter type = TypeFilter.all,
     String? category,
-    DateTime? startDate,
-    DateTime? endDate,
+    DateRange? range,
   }) {
-    final list = transactions.where((tx) {
-      final matchesQuery = query == null || query.isEmpty || tx.note.toLowerCase().contains(query.toLowerCase());
-      final matchesCategory = category == null || category == 'All' || tx.category == category;
-      final matchesStart = startDate == null || !tx.date.isBefore(startDate);
-      // Treat the selected end date as inclusive for the entire calendar day.
-      final endExclusive = endDate == null
-          ? null
-          : DateTime(endDate.year, endDate.month, endDate.day + 1);
-      final matchesEnd = endExclusive == null || tx.date.isBefore(endExclusive);
-      return matchesQuery && matchesCategory && matchesStart && matchesEnd;
+    final q = query.trim().toLowerCase();
+    return _items.where((tx) {
+      if (type == TypeFilter.income && !tx.isIncome) return false;
+      if (type == TypeFilter.expense && tx.isIncome) return false;
+      if (category != null && tx.category != category) return false;
+      if (range != null && !range.contains(tx.date)) return false;
+      if (q.isNotEmpty) {
+        final amountText = (tx.amountMinor / 100).toStringAsFixed(2);
+        if (!tx.searchText.contains(q) && !amountText.contains(q)) {
+          return false;
+        }
+      }
+      return true;
     }).toList();
-
-    // Show newest transactions first.
-    list.sort((a, b) => b.date.compareTo(a.date));
-    return list;
   }
 }
