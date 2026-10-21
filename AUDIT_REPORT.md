@@ -2,7 +2,7 @@
 
 Project: `expense_tracker` (uploaded as `expense_tracker_flutter_improved.zip`, root folder `expense_tracker_flutter-main/`)
 Audit date: 2026-10-21
-Status: **Baseline only. No application source file has been modified yet.**
+Status: Sections 1–7 record the **baseline** as found. Section 8 is the **final status** after the work.
 
 The original upload is committed to a *local-only* git repository (commit "Baseline: original uploaded project") so every later change can be diffed. Nothing has been pushed anywhere.
 
@@ -131,3 +131,62 @@ Items marked **[Reproduced]** were confirmed by running throwaway tests against 
 1. Android SDK cannot be downloaded in this environment (`dl.google.com` blocked), so no APK can be built or verified here yet.
 2. Debug-key signing (C3) and `com.example` application ID (H7) both need owner decisions.
 3. C1, C2, H1–H6 must be fixed and covered by tests.
+
+---
+
+## 8. Final status (after implementation)
+
+### Decisions made by the owner
+| Decision | Choice |
+|---|---|
+| Application ID | Change to `com.navisudhakar.expensetracker` (app not yet installed by users) |
+| Money storage | Integer minor units, non-destructive (legacy records read as-is, never rewritten on load) |
+| New features | Monthly budgets, category management, dark mode + settings, backup & restore |
+| Hard-coded bank accounts | Replace with generic accounts; keep existing values on old records |
+
+### Feature status
+| Area | Status |
+|---|---|
+| Dashboard | Implemented and tested (balance, month income/expense/net, savings rate, budgets, top categories, recent) |
+| Add / edit / delete transactions | Implemented and tested (validation, double-tap guard, confirmation, undo) |
+| Search & filters | Implemented and tested (text, type, period, custom range, category) |
+| Categories | Implemented and tested (add/rename/recolor/icon/delete with safe reassignment) |
+| Budgets | Implemented and tested (overall + per category; under/near/reached/exceeded) |
+| Reports | Implemented and tested (month/year, category donut, trend, daily); PDF export: generation tested, share/save dialogs need a device |
+| Settings | Implemented and tested (theme, currency, categories, backup, restore, erase) |
+| Backup & restore | Encode/decode/merge tested; file dialogs need a device |
+| Persistence | Verified with real Hive files, including the original v1 schema |
+| Notifications | Not applicable (not part of the app) |
+
+### Files changed
+* **Rewritten/added (lib):** `main.dart`, `app.dart`, `models/*`, `providers/*` (transaction, category, budget, settings), `services/*` (finance_calculator, backup_service, pdf_report_service, category_actions, hive_service, key_value_store), `screens/*` (shell, dashboard, transactions, transaction_form, reports, budgets, categories, settings), `widgets/*`, `theme/app_theme.dart`, `utils/*` (money, date_utils, app_constants).
+* **Removed:** `screens/home_screen.dart`, `screens/add_transaction_screen.dart` (replaced by the screens above), `test/widget_test.dart` (counter template).
+* **Android:** `app/build.gradle.kts` (ID, signing), `AndroidManifest.xml` (label), MainActivity moved to the new package, launcher icons (adaptive + legacy), launch screen and colors, `gradle.properties` (heap).
+* **Tests:** `test/unit/*` (7 files), `test/widget/*` (2 files + helpers), `integration_test/app_test.dart`.
+* **Config/docs:** `pubspec.yaml`, `pubspec.lock`, `analysis_options.yaml` (auto-excludes), README and the five reports.
+
+### Known limitations and remaining issues
+1. **No APK has been built or run.** The Android SDK cannot be downloaded in this environment. Everything Android-specific (Gradle signing logic, new app ID, resources, plugins on AGP 9 / Gradle 9.1, file dialogs, sharing) is **unverified by a build or a device**.
+2. PDF export renders non-Latin text (Hindi, Tamil, …) as boxes. A proper fix means bundling Noto fonts (several MB per script); not done without approval.
+3. Hive data is not encrypted at rest. It relies on Android's app sandbox. Android device backup may include it if the user has backups enabled (disclosed in-app).
+4. Currency setting changes the symbol only; there is no multi-currency or conversion.
+5. Budgets recur monthly with the same limit; there are no per-month overrides or rollover.
+6. `flutter_lints` is still ^2.0.0 (old major); upgrading would add lint work but no runtime change.
+7. `web/` and `windows/` folders were left as-is and not tested; the README targets Android.
+8. Search and filters are linear scans. That's fine for thousands of records but not profiled on a device.
+9. Dates are stored as local time without a zone offset (as in v1). If a user changes time zone, existing timestamps keep their wall-clock value.
+
+### Go / no-go
+**NO-GO for public release yet.** The code side meets the acceptance criteria that can be checked here:
+* ✅ No known unresolved critical or high defects in the code
+* ✅ All implemented features covered by automated tests; financial logic verified by unit tests
+* ✅ Persistence verified with real storage files
+* ✅ `flutter analyze` clean, formatter clean, 98/98 tests pass
+* ✅ Security and privacy reviewed and documented; no permissions, network, analytics or secrets
+
+These release criteria are **not met** and block a release:
+* ⛔ Release APK built successfully
+* ⛔ Release signing verified (also needs the owner's keystore)
+* ⛔ Installation and core workflows verified on a device
+
+**Next actions:** (1) allow `dl.google.com` in this environment's network settings, or build on a machine with the Android SDK; (2) create the upload keystore and `android/key.properties`; (3) run `flutter build apk --release`, `apksigner verify`, the integration test and the manual checklist in `TEST_PLAN.md`; (4) fix anything they reveal, then re-assess.
