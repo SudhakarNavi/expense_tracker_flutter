@@ -58,3 +58,11 @@ IDs match `AUDIT_REPORT.md`. "Verified by" names the automated test that now gua
 | `environment.sdk` `>=3.0.0` → `>=3.10.0` | `pubspec.lock` already required Dart ≥ 3.10.3; the code uses Dart 3.10 language features |
 | `pubspec.lock`: `meta`, `test_api`, `vector_math` | Pinned by the Flutter SDK (automatic on `pub get`) |
 | No dependency upgraded otherwise | `flutter_lints ^2.0.0` left as-is to avoid churn |
+
+## Follow-up fixes — 2026-10-31
+
+| ID | Defect | Fix | Verification |
+|---|---|---|---|
+| L7 | Integration-test references to `setUp`, `tearDown`, `testWidgets`, `expect`, and `find` could not resolve because `package:flutter_test/flutter_test.dart` was missing. | Restored the missing `flutter_test` import in [integration_test/app_test.dart](integration_test/app_test.dart). | `flutter analyze`: no issues found; `flutter test`: 98/98 passed; Chrome debug startup completed without runtime errors. |
+
+Remaining unexecuted checks are limited to Android-device integration and device-specific file-picker workflows; no emulator or connected Android device was available.

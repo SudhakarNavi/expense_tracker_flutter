@@ -190,3 +190,27 @@ These release criteria are **not met** and block a release:
 * ⛔ Installation and core workflows verified on a device
 
 **Next actions:** (1) allow `dl.google.com` in this environment's network settings, or build on a machine with the Android SDK; (2) create the upload keystore and `android/key.properties`; (3) run `flutter build apk --release`, `apksigner verify`, the integration test and the manual checklist in `TEST_PLAN.md`; (4) fix anything they reveal, then re-assess.
+
+---
+
+## 9. Follow-up audit — 2026-10-31
+
+| Check | Result |
+|---|---|
+| Environment | Flutter 3.44.0 stable, Dart 3.12.0, Android SDK 36.1.0, Android licenses accepted |
+| `dart format --output=none --set-exit-if-changed .` | Passed: 42 files checked, 0 changes required |
+| `flutter analyze` | Passed: no issues found |
+| `flutter test` | Passed: 98/98 tests |
+| Chrome debug run | Passed: application started and all four Hive stores opened without a runtime exception |
+| Android integration test | Not available: no emulator or connected Android device |
+
+### Issue found and fixed
+
+| ID | Issue | Fix and verification |
+|---|---|---|
+| L7 | `integration_test/app_test.dart` referenced Flutter test helpers (`setUp`, `testWidgets`, `expect`, `find`) without importing `package:flutter_test/flutter_test.dart`, causing 18 analyzer errors. | Restored the missing import. Re-running `flutter analyze` reported no issues. |
+
+### Remaining validation limitations
+
+* Android integration and device-only file-picker flows cannot run until an Android device or emulator is available.
+* Chrome debug startup verified the application boot path, but the README correctly defines Android as the supported production target.
