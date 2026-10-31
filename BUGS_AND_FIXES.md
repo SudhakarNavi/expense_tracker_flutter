@@ -66,3 +66,10 @@ IDs match `AUDIT_REPORT.md`. "Verified by" names the automated test that now gua
 | L7 | Integration-test references to `setUp`, `tearDown`, `testWidgets`, `expect`, and `find` could not resolve because `package:flutter_test/flutter_test.dart` was missing. | Restored the missing `flutter_test` import in [integration_test/app_test.dart](integration_test/app_test.dart). | `flutter analyze`: no issues found; `flutter test`: 98/98 passed; Chrome debug startup completed without runtime errors. |
 
 Remaining unexecuted checks are limited to Android-device integration and device-specific file-picker workflows; no emulator or connected Android device was available.
+
+## Merge cleanup — 2026-10-31
+
+| ID | Defect | Fix | Verification |
+|---|---|---|---|
+| M1 | Two unreferenced legacy screens from the merged GitHub history used removed provider/model/category APIs, including `amount`, `defaultCategories`, `balance`, and legacy transaction methods. | Removed the incompatible legacy `home_screen.dart` and `add_transaction_screen.dart`; the active app already uses the modern shell and transaction-form implementations. | `flutter analyze`: no issues found. |
+| M2 | The obsolete Flutter counter-template widget test referenced the removed template app and could fail test discovery. | Removed `test/widget_test.dart`; meaningful app and finance coverage remains in the unit and widget suites. | `flutter test`: 98/98 passed. |

@@ -214,3 +214,20 @@ These release criteria are **not met** and block a release:
 
 * Android integration and device-only file-picker flows cannot run until an Android device or emulator is available.
 * Chrome debug startup verified the application boot path, but the README correctly defines Android as the supported production target.
+
+## 10. Merge cleanup verification — 2026-10-31
+
+The project history was merged with the GitHub repository. Two legacy merged
+screens remained in the source tree but were not referenced by the active app
+navigation, and they used APIs removed by the current architecture.
+
+| Check | Result |
+|---|---|
+| Obsolete legacy screens removed | `lib/screens/home_screen.dart` and `lib/screens/add_transaction_screen.dart` |
+| Obsolete Flutter counter template removed | `test/widget_test.dart` |
+| `flutter analyze` | Passed: no issues found |
+| `flutter test` | Passed: 98/98 tests |
+
+The active app entry point already routes through the newer shell and form
+screens, so removing these unreferenced legacy files fixes the merge compilation
+errors without changing the application UI or behavior.
